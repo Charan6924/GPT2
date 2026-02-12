@@ -4,6 +4,12 @@ import torch
 import torch.nn as nn
 from torch.nn import functional as F
 import math
+from Dataloaderlite import Dataloaderlite
+import time
+torch.backends.cudnn.benchmark = True  # Auto-tune cuDNN
+torch.backends.cuda.matmul.allow_tf32 = True
+torch.backends.cudnn.allow_tf32 = True
+torch.set_float32_matmul_precision('high')
 
 @dataclass
 class GPTConfig:
@@ -20,6 +26,7 @@ class MLP(nn.Module):
         self.c_fc = nn.Linear(config.n_embd, 4 * config.n_embd)
         self.gelu = nn.GELU(approximate='tanh')
         self.c_proj = nn.Linear(config.n_embd * 4, config.n_embd)
+        self.c_proj.NANOGPT_INIT_SCALE = 1.0 #type: ignore
 
     def forward(self, x):
         x = self.c_fc(x)
@@ -34,21 +41,20 @@ class CausalSelfAttention(nn.Module):
         assert config.n_embd % config.n_head == 0
         self.c_attn = nn.Linear(config.n_embd, config.n_embd * 3)
         self.c_proj = nn.Linear(config.n_embd, config.n_embd)
+        self.c_proj.NANOGPT_INIT_SCALE = 1.0
         self.n_head = config.n_head
         self.n_embd = config.n_embd
-        self.register_buffer("bias", torch.tril(torch.ones(config.block_size, config.block_size)).view(1, 1, config.block_size, config.block_size))
 
     def forward(self, x):
         B, T, C = x.size()
         qkv = self.c_attn(x)
-        q, k, v = qkv.split(self.n_embd, dim=2)  # FIX: was self.n_embed
+        q, k, v = qkv.split(self.n_embd, dim=2)
         k = k.view(B, T, self.n_head, C // self.n_head).transpose(1, 2)
         q = q.view(B, T, self.n_head, C // self.n_head).transpose(1, 2)
         v = v.view(B, T, self.n_head, C // self.n_head).transpose(1, 2)
-        att = (q @ k.transpose(-2, -1)) * (1.0 / math.sqrt(k.size(-1)))
-        att = att.masked_fill(self.bias[:, :, :T, :T] == 0, float('-inf'))  # type: ignore
-        att = F.softmax(att, dim=-1)
-        y = att @ v
+        
+        y = F.scaled_dot_product_attention(q, k, v, is_causal=True)
+        
         y = y.transpose(1, 2).contiguous().view(B, T, C)
         y = self.c_proj(y)
         return y
@@ -77,6 +83,20 @@ class GPT(nn.Module):
             ln_f = nn.LayerNorm(config.n_embd)
         ))
         self.lm_head = nn.Linear(config.n_embd, config.vocab_size, bias=False)
+
+        self.transformer.wte.weight = self.lm_head.weight #type: ignore
+        self.apply(self._init_weights)
+
+    def _init_weights(self, module):
+        if isinstance(module, nn.Linear):
+            std = 0.02
+            if hasattr(module, 'NANOGPT_INIT_SCALE'):
+                std *= module.NANOGPT_INIT_SCALE  #type: ignore
+            torch.nn.init.normal_(module.weight, mean=0.0, std=std) #type: ignore
+            if module.bias is not None:
+                torch.nn.init.zeros_(module.bias)
+        elif isinstance(module, nn.Embedding):
+            torch.nn.init.normal_(module.weight, mean=0.0, std=0.02)  
 
     def forward(self,idx,targets = None):
         B,T = idx.size()
@@ -133,24 +153,33 @@ class GPT(nn.Module):
                     sd[k].copy_(sd_hf[k])
 
         return model
-with open('input.txt','r') as f:
-    text = f.read()
-data = text[:1000]
-print(data[:100])
-num_return_sequences = 5
-max_length = 30
+
+train_loader = Dataloaderlite(16,1024)
+torch.manual_seed(1337)
+torch.cuda.manual_seed(1337)
 model = GPT(GPTConfig())
-print('Ya')
-model.eval()
 model.to('cuda')
+optimizer = torch.optim.AdamW(model.parameters(),lr = 3e-4)
 
-import tiktoken
-enc = tiktoken.get_encoding('gpt2')
-tokens = enc.encode(data)
-tokens = torch.tensor(tokens,dtype = torch.long)
-tokens = tokens.unsqueeze(0).repeat(num_return_sequences, 1)
-x = tokens.to('cuda')
+for i in range(50):
+    t0 = time.time()
+    x, y = train_loader.next_batch()
+    x, y = x.to('cuda'), y.to('cuda')
+    t1 = time.time()
+    optimizer.zero_grad()
+    logits, loss = model(x, y)
+    loss.backward()
+    optimizer.step()
+    torch.cuda.synchronize()
+    t2 = time.time()
+    
+    print(f"step {i}, loss {loss.item()}, GPU time {(t2-t1)*1000:.2f} ms, total {(t2-t0)*1000:.2f} ms")
 
+
+import sys;sys.exit(0)
+model.eval()
+max_length = 30
+num_return_sequences = 30
 torch.manual_seed(42)
 torch.cuda.manual_seed(42)
 while x.size(1) < max_length:
@@ -167,3 +196,4 @@ for i in range(num_return_sequences):
     tokens = x[i,:max_length].tolist()
     decoded = enc.decode(tokens)
     print(">",decoded)
+
