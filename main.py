@@ -1,39 +1,45 @@
 import torch
 import torch.nn as nn
+from torch.nn import functional as F
 import time
+from train_gpt2 import GPT, GPTConfig
+from Dataloaderlite import Dataloaderlite
+torch.backends.cudnn.benchmark = True
+torch.backends.cuda.matmul.allow_tf32 = True
+torch.backends.cudnn.allow_tf32 = True
+torch.cuda.empty_cache()
 
-# Super simple model
-model = nn.Sequential(
-    nn.Linear(768, 3072),
-    nn.GELU(),
-    nn.Linear(3072, 768)
-).cuda()
-
+model = GPT(GPTConfig()).cuda()
 optimizer = torch.optim.AdamW(model.parameters(), lr=3e-4)
-
-# Test data
-x = torch.randn(16, 1024, 768, device='cuda')
-target = torch.randn(16, 1024, 768, device='cuda')
+train_loader = Dataloaderlite(16, 1024)
 
 # Warmup
 for _ in range(3):
-    y = model(x)
-    loss = ((y - target) ** 2).mean()
+    x, y = train_loader.next_batch()
+    x, y = x.to('cuda'), y.to('cuda')
+    optimizer.zero_grad()
+    logits, loss = model(x, y)
     loss.backward()
     optimizer.step()
-    optimizer.zero_grad()
+    
+    # Explicit cleanup
+    del x, y, logits, loss
+    torch.cuda.empty_cache()
 
-# Benchmark
-torch.cuda.synchronize()
-t0 = time.time()
-for _ in range(10):
-    y = model(x)
-    loss = ((y - target) ** 2).mean()
+print("\nTimed runs:")
+for i in range(10):
+    x, y = train_loader.next_batch()
+    x, y = x.to('cuda'), y.to('cuda')
+    
+    torch.cuda.synchronize()
+    t0 = time.time()
+    optimizer.zero_grad()
+    logits, loss = model(x, y)
     loss.backward()
     optimizer.step()
-    optimizer.zero_grad()
-torch.cuda.synchronize()
-t1 = time.time()
-
-print(f"Average time per iteration: {(t1-t0)/10*1000:.2f} ms")
-print("Expected for 4090: ~50-100ms")
+    torch.cuda.synchronize()
+    
+    dt = (time.time()-t0)*1000
+    print(f"Step {i}: {dt:.2f}ms, loss: {loss.item():.4f}")
+    
+    # Cleanup after each step

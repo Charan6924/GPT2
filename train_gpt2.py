@@ -160,23 +160,33 @@ torch.cuda.manual_seed(1337)
 model = GPT(GPTConfig())
 model.to('cuda')
 optimizer = torch.optim.AdamW(model.parameters(),lr = 3e-4)
-
-for i in range(50):
-    t0 = time.time()
-    x, y = train_loader.next_batch()
-    x, y = x.to('cuda'), y.to('cuda')
-    t1 = time.time()
-    optimizer.zero_grad()
-    logits, loss = model(x, y)
-    loss.backward()
-    optimizer.step()
-    torch.cuda.synchronize()
-    t2 = time.time()
+if __name__ == "__main__":
+    torch.manual_seed(1337)
+    torch.cuda.manual_seed(1337)
     
-    print(f"step {i}, loss {loss.item()}, GPU time {(t2-t1)*1000:.2f} ms, total {(t2-t0)*1000:.2f} ms")
+    train_loader = Dataloaderlite(16, 1024)
+    model = GPT(GPTConfig())
+    model.to('cuda')
+    optimizer = torch.optim.AdamW(model.parameters(), lr=3e-4)
+    
+    for i in range(50):
+        torch.cuda.synchronize()
+        t0 = time.time()
+        
+        x, y = train_loader.next_batch()
+        x, y = x.to('cuda'), y.to('cuda')
+        optimizer.zero_grad()
+        logits, loss = model(x, y)
+        loss.backward()
+        optimizer.step()
+        
+        torch.cuda.synchronize()
+        t1 = time.time()
+        
+        print(f"step {i}, loss {loss.item():.4f}, dt {(t1-t0)*1000:.2f} ms")
 
 
-import sys;sys.exit(0)
+'''
 model.eval()
 max_length = 30
 num_return_sequences = 30
@@ -197,3 +207,4 @@ for i in range(num_return_sequences):
     decoded = enc.decode(tokens)
     print(">",decoded)
 
+'''
