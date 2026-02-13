@@ -8,3 +8,5 @@ wheels/
 
 # Virtual environments
 .venv
+edu_fineweb10B/
+hf_cache/
