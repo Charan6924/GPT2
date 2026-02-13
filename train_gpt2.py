@@ -41,7 +41,7 @@ class CausalSelfAttention(nn.Module):
         assert config.n_embd % config.n_head == 0
         self.c_attn = nn.Linear(config.n_embd, config.n_embd * 3)
         self.c_proj = nn.Linear(config.n_embd, config.n_embd)
-        self.c_proj.NANOGPT_INIT_SCALE = 1.0
+        self.c_proj.NANOGPT_INIT_SCALE = 1.0 #type: ignore
         self.n_head = config.n_head
         self.n_embd = config.n_embd
 
