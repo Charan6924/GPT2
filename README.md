@@ -83,10 +83,17 @@ GPT2/
 ├── fineweb.py              # Dataset download and tokenization
 ├── Dataloaderlite.py       # Data loader
 ├── train.sh                # SLURM batch script
-├── edu_fineweb10B/         # Tokenized dataset shards
+├── plot.py                 # Plotting script for metrics
+├── main.py                 # Additional utilities
+├── README.md               # This file
+├── .gitignore              # Git ignore rules
+├── .python-version         # Python version specification
+├── pyproject.toml          # Project dependencies
+├── uv.lock                 # Dependency lock file
+├── input.txt               # Sample input data
+├── loss_curve.png          # Training loss plot
+├── training_metrics.png    # All training metrics plot
 ├── log/                    # Checkpoints and metrics
-│   ├── metrics.jsonl
-│   └── model_*.pt
-├── logs/                   # SLURM output logs
-└── loss_curve.png          # Training loss plot
+│   └── metrics.jsonl       # Training metrics log
+└── logs/                   # SLURM output logs (not in git)
 ```
