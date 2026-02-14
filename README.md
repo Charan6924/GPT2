@@ -60,8 +60,8 @@ Final training loss: **3.0**
 
 ## Monitoring
 ```bash
-# Check job status
-squeue -u cxv166
+# Check gpu usage
+watch -n 0.1 nvidia-smi
 
 # Plot training metrics
 python plot.py
