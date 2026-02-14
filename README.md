@@ -2,7 +2,7 @@
 
 Training GPT-2 (124M parameters) from scratch on the FineWeb-Edu 10B token dataset.
 
-![Training Loss](loss_curve.png)
+![Training Loss](Plots/loss_curve.png)
 
 ## Model Architecture
 
