@@ -63,11 +63,8 @@ Final training loss: **3.0**
 # Check job status
 squeue -u cxv166
 
-# Monitor training output
-tail -f logs/train_<JOBID>.out
-
 # Plot training metrics
-python plot_metrics.py
+python plot.py
 ```
 
 ## File Structure
