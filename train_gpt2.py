@@ -7,6 +7,8 @@ from torch.nn import functional as F
 import math
 from Dataloaderlite import Dataloaderlite
 import time
+import json
+import os
 torch.backends.cudnn.benchmark = True  # Auto-tune cuDNN
 torch.backends.cuda.matmul.allow_tf32 = True
 torch.backends.cudnn.allow_tf32 = True
@@ -175,27 +177,30 @@ class GPT(nn.Module):
                                  
 
 if __name__ == "__main__":
+    log_dir = "log"
+    os.makedirs(log_dir, exist_ok=True)
+    metrics_file = os.path.join(log_dir, "metrics.jsonl")
     torch.manual_seed(1337)
     torch.cuda.manual_seed(1337)
 
     total_batch_size = 524288 #according to paper
-    B = 512
+    B = 64
     T = 1024
     assert total_batch_size % (B * T) == 0, "total_batch_size must be divisible by B*T"
     grad_accum_steps = total_batch_size // (B * T)
     print(f'desired batch size: {total_batch_size} | grad_accum_steps: {grad_accum_steps}')
     print(f"batch size : {B} | sequence length: {T}")
     
-    train_loader = Dataloaderlite(16, 1024)
+    train_loader = Dataloaderlite(B, T, process_rank=0, num_processes=1, split='train')
     model = GPT(GPTConfig(vocab_size = 50304))
     model.to('cuda')
     optimizer = model.configure_optimizers(weight_decay=0.1, learning_rate=6e-4, device='cuda')
-    model = torch.compile(model)
+    #model = torch.compile(model)
 
     max_lr = 6e-4
     min_lr = max_lr * 0.1
-    warmup_steps = 10
-    max_steps = 50
+    warmup_steps = 715
+    max_steps = 19073
     def get_lr(it):
         if it < warmup_steps:
             return max_lr * (it+1) / warmup_steps
@@ -224,12 +229,19 @@ if __name__ == "__main__":
         for param_group in optimizer.param_groups:
             param_group['lr'] = lr
         optimizer.step()
-        
         torch.cuda.synchronize()
         t1 = time.time()
         tokens_per_sec = (train_loader.B * train_loader.T * grad_accum_steps) / (t1 - t0)
+        metrics = {
+        'step': step,
+        'loss': loss_accum,
+        'lr': lr,
+        'grad_norm': float(norm),
+        'tokens_per_sec': tokens_per_sec,
+        'time_ms': (t1 - t0) * 1000,}
         print(f"step {step} | loss {loss_accum:.4f} | dt {(t1-t0)*1000:.2f} ms | lr {lr:.4e} | norm : {norm:.4f} | tokens/sec {tokens_per_sec:.2f}")
-
+        with open(metrics_file, 'a') as f:
+            f.write(json.dumps(metrics) + '\n')
 
 '''
 model.eval()
