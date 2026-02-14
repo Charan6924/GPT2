@@ -70,21 +70,20 @@ python plot.py
 ## File Structure
 ```
 GPT2/
-├── train_gpt2.py           # Main training script
-├── fineweb.py              # Dataset download and tokenization
-├── Dataloaderlite.py       # Data loader
+├── Code/                   # Training and data processing scripts
+│   ├── train_gpt2.py       # Main training script
+│   ├── fineweb.py          # Dataset download and tokenization
+│   └── Dataloaderlite.py   # Data loader
+├── Plots/                  # Training visualization plots
+│   ├── loss_curve.png      # Training loss plot
+│   └── training_metrics.png # All training metrics plot
+├── log/                    # Checkpoints and metrics
+│   └── metrics.jsonl       # Training metrics log
 ├── train.sh                # SLURM batch script
-├── plot.py                 # Plotting script for metrics
-├── main.py                 # Additional utilities
 ├── README.md               # This file
 ├── .gitignore              # Git ignore rules
 ├── .python-version         # Python version specification
 ├── pyproject.toml          # Project dependencies
 ├── uv.lock                 # Dependency lock file
-├── input.txt               # Sample input data
-├── loss_curve.png          # Training loss plot
-├── training_metrics.png    # All training metrics plot
-├── log/                    # Checkpoints and metrics
-│   └── metrics.jsonl       # Training metrics log
-└── logs/                   # SLURM output logs (not in git)
+└── input.txt               # Sample input data
 ```
