@@ -36,12 +36,6 @@ HF_HOME=/mnt/vstor/courses/csds312/cvx166/GPT2/hf_cache uv run fineweb.py
 sbatch train.sh
 ```
 
-### Interactive
-```bash
-srun -A csds312 -p markov_gpu --gres=gpu:1 --mem=16gb --constraint=gpu2h100 --pty bash
-PYTHONUNBUFFERED=1 PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True uv run train_gpt2.py
-```
-
 ## Training Configuration
 
 - **Batch size**: 524,288 tokens (B=128, T=1024, grad_accum=4)
