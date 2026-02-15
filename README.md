@@ -31,7 +31,7 @@ uv run fineweb.py
 
 ## Training
 
-### Batch Job (Recommended)
+### Batch Job
 ```bash
 sbatch train.sh
 ```
