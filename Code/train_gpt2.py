@@ -1,6 +1,5 @@
 from dataclasses import dataclass
 import inspect
-from typing_extensions import Self
 import torch
 import torch.nn as nn
 from torch.nn import functional as F
