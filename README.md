@@ -2,7 +2,7 @@
 
 Training GPT-2 (124M parameters) from scratch on the FineWeb-Edu 10B token dataset.
 
-![Training Loss](loss_curve.png)
+![Training Loss](log/training_loss.png)
 
 ## Model Architecture
 
@@ -36,9 +36,9 @@ HF_HOME=/mnt/vstor/courses/csds312/cvx166/GPT2/hf_cache uv run fineweb.py
 sbatch train.sh
 ```
 
-## Training Configuration
+### Training Configuration
 
-- **Batch size**: 524,288 tokens (B=128, T=1024, grad_accum=4)
+- **Batch size**: 524,288 tokens (B=64, T=1024, grad_accum=8)
 - **Learning rate**: 6e-4 with cosine decay to 6e-5
 - **Warmup steps**: 715
 - **Total steps**: 19,073
@@ -56,34 +56,84 @@ sbatch train.sh
 
 ## Results
 
-Final training loss: **3.0**
+### Training Metrics
+- **Final training loss**: 3.0
+- **Final validation loss**: ~3.1
+
+### HellaSwag Evaluation
+Common sense reasoning benchmark (multiple-choice question answering):
+- **Accuracy (normalized)**: 30.5%
+- **Accuracy (sum)**: 28.8%
+- **Random baseline**: 25.0%
+
+![HellaSwag Results](log/hellaswag_accuracy.png)
+
+The model performs comparably to the original GPT-2 (124M) baseline on HellaSwag, demonstrating successful training and meaningful language understanding beyond random chance.
+
+## Evaluation
+
+### Run HellaSwag Evaluation
+```bash
+uv run hellaswag.py
+```
+
+This will:
+- Download the HellaSwag validation set (~10K examples)
+- Evaluate the trained model
+- Log results to `log/hellaswag_results.jsonl`
+
+### Plot Results
+```bash
+# Plot training metrics
+python plot.py
+
+# Plot HellaSwag evaluation
+python plot_hellaswag.py
+```
 
 ## Monitoring
 ```bash
 # Check job status
 squeue -u cxv166
 
-# Plot training metrics
-python plot.py
+# View training logs
+tail -f slurm-*.out
 ```
 
 ## File Structure
 ```
 GPT2/
-├── Code/                   # Training and data processing scripts
-│   ├── train_gpt2.py       # Main training script
-│   ├── fineweb.py          # Dataset download and tokenization
-│   └── Dataloaderlite.py   # Data loader
-├── Plots/                  # Training visualization plots
-│   ├── loss_curve.png      # Training loss plot
-│   └── training_metrics.png # All training metrics plot
-├── log/                    # Checkpoints and metrics
-│   └── metrics.jsonl       # Training metrics log
-├── train.sh                # SLURM batch script
+├── train_gpt2.py           # Main training script with GPT-2 implementation
+├── Dataloaderlite.py       # Distributed data loader
+├── fineweb.py              # Dataset download and tokenization
+├── hellaswag.py            # HellaSwag evaluation script
+├── plot.py                 # Training metrics plotting
+├── plot_hellaswag.py       # HellaSwag results plotting
+├── train.sh                # SLURM batch submission script
+├── log/                    # Training outputs
+│   ├── model_final.pt      # Final model checkpoint
+│   ├── metrics.jsonl       # Training metrics log
+│   ├── hellaswag_results.jsonl  # HellaSwag evaluation log
+│   ├── training_loss.png   # Training loss curve
+│   ├── validation_loss.png # Validation loss curve
+│   ├── learning_rate.png   # Learning rate schedule
+│   ├── throughput.png      # Training throughput
+│   └── hellaswag_accuracy.png  # HellaSwag evaluation plot
+├── hellaswag/              # HellaSwag dataset cache
+│   └── hellaswag_val.jsonl # Validation split
+├── edu_fineweb10B/         # Tokenized training data
+├── .venv/                  # Python virtual environment
+├── __pycache__/            # Python cache
+├── hf_cache/               # HuggingFace cache
 ├── README.md               # This file
 ├── .gitignore              # Git ignore rules
-├── .python-version         # Python version specification
+├── .python-version         # Python version (3.12)
 ├── pyproject.toml          # Project dependencies
-├── uv.lock                 # Dependency lock file
-└── input.txt               # Sample input data
+└── uv.lock                 # Dependency lock file
 ```
+
+## References
+
+- **Architecture**: Based on GPT-2 from [Radford et al. (2019)](https://cdn.openai.com/better-language-models/language_models_are_unsupervised_multitask_learners.pdf)
+- **Dataset**: [FineWeb-Edu](https://huggingface.co/datasets/HuggingFaceFW/fineweb-edu)
+- **Evaluation**: [HellaSwag benchmark](https://arxiv.org/abs/1905.07830)
