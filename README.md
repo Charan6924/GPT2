@@ -121,10 +121,7 @@ GPT2/
 │   └── hellaswag_accuracy.png  # HellaSwag evaluation plot
 ├── hellaswag/              # HellaSwag dataset cache
 │   └── hellaswag_val.jsonl # Validation split
-├── edu_fineweb10B/         # Tokenized training data
-├── .venv/                  # Python virtual environment
-├── __pycache__/            # Python cache
-├── hf_cache/               # HuggingFace cache
+├── edu_fineweb10B/         # Tokenized training data            
 ├── README.md               # This file
 ├── .gitignore              # Git ignore rules
 ├── .python-version         # Python version (3.12)
