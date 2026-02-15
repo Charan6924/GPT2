@@ -26,7 +26,7 @@ Training GPT-2 (124M parameters) from scratch on the FineWeb-Edu 10B token datas
 uv sync
 
 # Download and tokenize dataset
-HF_HOME=/mnt/vstor/courses/csds312/cvx166/GPT2/hf_cache uv run fineweb.py
+uv run fineweb.py
 ```
 
 ## Training
