@@ -11,3 +11,4 @@ wheels/
 edu_fineweb10B/
 hf_cache/
 logs/
+log/model_final.pt

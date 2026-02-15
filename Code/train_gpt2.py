@@ -9,6 +9,7 @@ from Dataloaderlite import Dataloaderlite
 import time
 import json
 import os
+import tiktoken
 torch.backends.cudnn.benchmark = True  # Auto-tune cuDNN
 torch.backends.cuda.matmul.allow_tf32 = True
 torch.backends.cudnn.allow_tf32 = True
@@ -182,6 +183,7 @@ if __name__ == "__main__":
     metrics_file = os.path.join(log_dir, "metrics.jsonl")
     torch.manual_seed(1337)
     torch.cuda.manual_seed(1337)
+    enc = tiktoken.get_encoding("gpt2")
 
     total_batch_size = 524288 #according to paper
     B = 64
@@ -192,6 +194,7 @@ if __name__ == "__main__":
     print(f"batch size : {B} | sequence length: {T}")
     
     train_loader = Dataloaderlite(B, T, process_rank=0, num_processes=1, split='train')
+    val_loader = Dataloaderlite(B, T, process_rank=0, num_processes=1, split='val')
     model = GPT(GPTConfig(vocab_size = 50304))
     model.to('cuda')
     optimizer = model.configure_optimizers(weight_decay=0.1, learning_rate=6e-4, device='cuda')
@@ -214,6 +217,51 @@ if __name__ == "__main__":
     for step in range(max_steps):
         torch.cuda.synchronize()
         t0 = time.time()
+        if step % 100 == 0:
+            model.eval()
+            val_loader.reset()
+            with torch.no_grad():
+                val_loss_accum = 0.0
+                val_loss_steps = 20
+                for _ in range(val_loss_steps):
+                    x,y = val_loader.next_batch()
+                    x,y = x.to('cuda'), y.to('cuda')
+                    with torch.autocast('cuda', dtype=torch.bfloat16):
+                        logits, loss = model(x, y)
+                    loss = loss/ val_loss_steps
+                    val_loss_accum += loss.item()
+                print(f"step {step} | validation loss: {val_loss_accum:.4f}")
+                metrics = {
+                    'step': step,
+                    'validation_loss': val_loss_accum,
+                }
+                with open(metrics_file, 'a') as f:
+                    f.write(json.dumps(metrics) + '\n')
+                    
+        if step > 0 and step % 100 == 0:
+            model.eval()
+            num_return_sequences = 4
+            max_length = 32
+            tokens = enc.encode("Hello, I'm a language model")
+            tokens = torch.tensor(tokens, dtype=torch.long)
+            xgen = tokens.unsqueeze(0).repeat(num_return_sequences, 1).to('cuda')
+            sample_rng = torch.Generator(device='cuda')
+            sample_rng.manual_seed(42)
+            while xgen.size(1) < max_length:
+                with torch.no_grad():
+                    logits,loss = model(xgen)
+                    logits = logits[:,-1,:]
+                    probs = F.softmax(logits, dim=-1)
+                    topk_probs, topk_indices = torch.topk(probs, 50, dim=-1)
+                    ix = torch.multinomial(topk_probs, 1, generator=sample_rng)
+                    xcol = torch.gather(topk_indices, -1, ix)
+                    xgen = torch.cat((xgen, xcol), dim=1)
+            for i in range(num_return_sequences):
+                gen_tokens = xgen[i,:].tolist()
+                gen_text = enc.decode(gen_tokens)
+                print(f"> {gen_text}")
+
+        model.train()
         optimizer.zero_grad()
         loss_accum = 0.0
         for micr_step in range(grad_accum_steps):
@@ -242,6 +290,16 @@ if __name__ == "__main__":
         print(f"step {step} | loss {loss_accum:.4f} | dt {(t1-t0)*1000:.2f} ms | lr {lr:.4e} | norm : {norm:.4f} | tokens/sec {tokens_per_sec:.2f}")
         with open(metrics_file, 'a') as f:
             f.write(json.dumps(metrics) + '\n')
+
+    checkpoint_path = os.path.join(log_dir, "model_final.pt")
+    checkpoint = {
+        'model': model.state_dict(),
+        'optimizer': optimizer.state_dict(),
+        'step': step,
+        'config': model.config,
+    }
+    torch.save(checkpoint, checkpoint_path)
+    print(f"Model saved to {checkpoint_path}")
 
 '''
 model.eval()
