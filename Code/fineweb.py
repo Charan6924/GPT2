@@ -6,7 +6,7 @@ from datasets import load_dataset
 from tqdm import tqdm
 
 local_dir = "edu_fineweb10B"
-remote_name = "sample-10BT"
+remote_name = "sample-100BT"
 shard_size = int(1e8)
 cache_dir = "/mnt/vstor/courses/csds312/cvx166/GPT2/hf_cache"
 
